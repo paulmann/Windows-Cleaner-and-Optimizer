@@ -1,5 +1,11 @@
 # Windows System Cleaner and Optimizer 🧹✨
 
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)]([https://github.com/paulmann/Windows-Cleaner-and-Optimizer](https://github.com/paulmann/Windows-Cleaner-and-Optimizer))
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![PowerShell](https://img.shields.io/badge/powershell-5.1%2B-blue.svg)](https://docs.microsoft.com/en-us/powershell/)
+[![Batch](https://img.shields.io/badge/batch-cmd-orange.svg)](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/cmd)
+[![Platform](https://img.shields.io/badge/platform-Windows%207|10|11|12-blue.svg)](https://www.microsoft.com/windows/)
+
 > **A comprehensive, enterprise-grade Windows cleanup automation tool that safely clears browser caches, temp files, system logs, and optimizes component store for maximum performance and disk space recovery.**
 
 Windows System Cleaner and Optimizer is a robust, professional-grade automation solution designed for system administrators and power users who need reliable disk cleanup before system imaging, backups, or disk migrations. It supports both PowerShell and Batch execution with extensive configuration options, comprehensive logging, and enterprise deployment capabilities.
