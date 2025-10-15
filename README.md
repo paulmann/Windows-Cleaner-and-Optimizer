@@ -1,6 +1,6 @@
 # Windows System Cleaner and Optimizer 🧹✨
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)]([https://github.com/paulmann/Windows-Cleaner-and-Optimizer](https://github.com/paulmann/Windows-Cleaner-and-Optimizer))
+[![Version](https://img.shields.io/badge/version-4.4.0-blue.svg)]([https://github.com/paulmann/Windows-Cleaner-and-Optimizer](https://github.com/paulmann/Windows-Cleaner-and-Optimizer))
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![PowerShell](https://img.shields.io/badge/powershell-5.1%2B-blue.svg)](https://docs.microsoft.com/en-us/powershell/)
 [![Batch](https://img.shields.io/badge/batch-cmd-orange.svg)](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/cmd)
