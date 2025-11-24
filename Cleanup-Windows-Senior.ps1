@@ -1,14 +1,18 @@
 <#
 /**
  * Windows System Cleanup Script with Full Configuration Support
+ * Enhanced for PowerShell 7+ with backward compatibility for PowerShell 5+
+ * Includes safety features and system backup options
  * 
- * @author Mikhail Deynekin
+ * @author Dmitry Deynekin
  * @email mid1977@gmail.com
  * @website https://deynekin.com
- * @version 4.4
+ * @version 5.2 (Fixed Compatibility Issues)
  * @date October 2025
  */
 #>
+
+#Requires -Version 5.1
 
 [CmdletBinding(SupportsShouldProcess)]
 param(
@@ -17,6 +21,15 @@ param(
     
     [int]$DaysOld = 30,
     [switch]$DryRun,
+    
+    # Safety and backup parameters
+    [switch]$EnableSafetyMode,
+    [switch]$NoSafetyMode,
+    [switch]$CreateRestorePoint,
+    [switch]$NoCreateRestorePoint,
+    [switch]$CreateSystemImage,
+    [switch]$NoCreateSystemImage,
+    [switch]$Force,
     
     # User scope control
     [switch]$CleanForAllUsers,
@@ -167,9 +180,40 @@ param(
     [alias("bc")][switch]$CleanBranchCacheShort,
     [alias("nbc")][switch]$NoCleanBranchCacheShort,
 
+    # Safety short parameters
+    [alias("safe")][switch]$EnableSafetyModeShort,
+    [alias("nsafe")][switch]$NoSafetyModeShort,
+    [alias("rp")][switch]$CreateRestorePointShort,
+    [alias("nrp")][switch]$NoCreateRestorePointShort,
+    [alias("img")][switch]$CreateSystemImageShort,
+    [alias("nimg")][switch]$NoCreateSystemImageShort,
+    [alias("f")][switch]$ForceShort,
+
+    # PowerShell 7+ specific parameters
+    [switch]$UseParallelProcessing,
+    [switch]$NoUseParallelProcessing,
+    [switch]$EnableTelemetry,
+    [switch]$NoEnableTelemetry,
+
     # Help parameter
     [switch]$Help
 )
+
+# =============================================
+# POWERSHELL VERSION DETECTION AND COMPATIBILITY
+# =============================================
+
+# Detect PowerShell version and set compatibility flags - FIXED: Use different variable name
+$Script:IsPS7Plus = $PSVersionTable.PSVersion -ge [version]'7.0'
+$Script:IsWindowsPlatform = ($PSVersionTable.Platform -eq 'Win32NT') -or ($IsWindows -eq $true)
+
+# Set default values for PS7+ features
+$Script:UseParallel = $Script:IsPS7Plus -and ($UseParallelProcessing -or (-not $NoUseParallelProcessing))
+$Script:EnableEnhancedTelemetry = $Script:IsPS7Plus -and ($EnableTelemetry -or (-not $NoEnableTelemetry))
+
+if (-not $Script:IsWindowsPlatform) {
+    Write-Warning "This script is designed for Windows systems. Some functionality may not work on $($PSVersionTable.Platform)."
+}
 
 # =============================================
 # FIXED PARAMETER PROCESSING
@@ -186,6 +230,8 @@ foreach ($arg in $args) {
         '--DryRun' { $dryRunRequested = $true }
         '--dryrun' { $dryRunRequested = $true }
         '--dry-run' { $dryRunRequested = $true }
+        '--Force' { $Force = $true }
+        '--force' { $Force = $true }
         '-?' { $helpRequested = $true }
     }
 }
@@ -193,22 +239,60 @@ foreach ($arg in $args) {
 if ($helpRequested) { $Help = $true }
 if ($dryRunRequested) { $DryRun = $true }
 
-# FIX: Явно устанавливаем WhatIfPreference только при активации DryRun
+# FIX: Explicitly set WhatIfPreference only when DryRun is activated
 if ($DryRun -or $DryRunShort -or $dryRunRequested) {
     $script:WhatIfPreference = $true
     $Global:WhatIfPreference = $true
     Write-Host "DRY RUN MODE: No changes will be made to the system" -ForegroundColor Yellow
 } else {
-    # ВАЖНО: Явно сбрасываем WhatIfPreference если DryRun не активирован
+    # IMPORTANT: Explicitly reset WhatIfPreference if DryRun is not activated
     $script:WhatIfPreference = $false
     $Global:WhatIfPreference = $false
 }
 
 # Fix log path if it was set incorrectly
 if ($LogPath -eq '--DryRun' -or $LogPath -eq '--dryrun' -or $LogPath -eq '--dry-run' -or 
-    $LogPath -eq '--Help' -or $LogPath -eq '--help') {
+    $LogPath -eq '--Help' -or $LogPath -eq '--help' -or $LogPath -eq '--Force' -or $LogPath -eq '--force') {
     $LogPath = "$env:TEMP\WindowsCleanup.log"
 }
+
+# =============================================
+# SAFETY CONFIGURATION AND DANGEROUS OPERATIONS
+# =============================================
+
+# Define potentially dangerous operations that require explicit consent
+$Script:DangerousOperations = @{
+    "CleanWindowsUpdateFull" = @{
+        Description = "Complete Windows Update cache removal (requires service restart)"
+        RiskLevel = "High"
+        Command = { param($config) Clear-WindowsUpdateFull }
+    }
+    "CleanRecycleBin" = @{
+        Description = "Permanent deletion of Recycle Bin contents"
+        RiskLevel = "Medium"
+        Command = { param($config) Clear-RecycleBin }
+    }
+    "CleanEventLogs" = @{
+        Description = "Clearing Windows Event Logs (loss of audit trail)"
+        RiskLevel = "Medium"
+        Command = { param($config) Clear-EventLogs }
+    }
+    "RunDISMAdvanced" = @{
+        Description = "Advanced DISM operations (system component modification)"
+        RiskLevel = "High"
+        Command = { param($config) Invoke-DISMAdvancedCleanup }
+    }
+    "CleanPatchCache" = @{
+        Description = "Windows Installer patch cache removal"
+        RiskLevel = "High"
+        Command = { param($config) Clear-PatchCache }
+    }
+}
+
+# Safety configuration
+$Script:SafetyModeEnabled = $EnableSafetyMode -or $EnableSafetyModeShort -or (-not ($NoSafetyMode -or $NoSafetyModeShort))
+$Script:CreateRestorePointEnabled = $CreateRestorePoint -or $CreateRestorePointShort -or (-not ($NoCreateRestorePoint -or $NoCreateRestorePointShort))
+$Script:CreateSystemImageEnabled = $CreateSystemImage -or $CreateSystemImageShort -or (-not ($NoCreateSystemImage -or $NoCreateSystemImageShort))
 
 # =============================================
 # CONFIGURATION
@@ -258,6 +342,15 @@ if ($LogPath -eq '--DryRun' -or $LogPath -eq '--dryrun' -or $LogPath -eq '--dry-
     AnalyzeComponentStore = $true
     CleanWindowsUpdateFull = $true
     CleanPatchCache = $true
+    
+    # Safety features
+    SafetyModeEnabled = $Script:SafetyModeEnabled
+    CreateRestorePointEnabled = $Script:CreateRestorePointEnabled
+    CreateSystemImageEnabled = $Script:CreateSystemImageEnabled
+    
+    # PowerShell 7+ specific features
+    UseParallelProcessing = $Script:UseParallel
+    EnableTelemetry = $Script:EnableEnhancedTelemetry
     
     # Log retention (days)
     EventLogRetention  = 30
@@ -347,7 +440,7 @@ function Update-ConfigurationFromParameters {
     if ($CleanBranchCache -or $CleanBranchCacheShort) { $CleanupConfig.CleanBranchCache = $true }
     if ($NoCleanBranchCache -or $NoCleanBranchCacheShort) { $CleanupConfig.CleanBranchCache = $false }
 
-# Enhanced parameters
+    # Enhanced parameters
     if ($RunComponentCleanupTask -or $RunComponentCleanupTaskShort) { $CleanupConfig.RunComponentCleanupTask = $true }
     if ($NoRunComponentCleanupTask -or $NoRunComponentCleanupTaskShort) { $CleanupConfig.RunComponentCleanupTask = $false }
 
@@ -363,87 +456,43 @@ function Update-ConfigurationFromParameters {
     if ($CleanPatchCache -or $CleanPatchCacheShort) { $CleanupConfig.CleanPatchCache = $true }
     if ($NoCleanPatchCache -or $NoCleanPatchCacheShort) { $CleanupConfig.CleanPatchCache = $false }
 
+    # Safety parameters
+    if ($EnableSafetyMode -or $EnableSafetyModeShort) { $CleanupConfig.SafetyModeEnabled = $true }
+    if ($NoSafetyMode -or $NoSafetyModeShort) { $CleanupConfig.SafetyModeEnabled = $false }
+
+    if ($CreateRestorePoint -or $CreateRestorePointShort) { $CleanupConfig.CreateRestorePointEnabled = $true }
+    if ($NoCreateRestorePoint -or $NoCreateRestorePointShort) { $CleanupConfig.CreateRestorePointEnabled = $false }
+
+    if ($CreateSystemImage -or $CreateSystemImageShort) { $CleanupConfig.CreateSystemImageEnabled = $true }
+    if ($NoCreateSystemImage -or $NoCreateSystemImageShort) { $CleanupConfig.CreateSystemImageEnabled = $false }
+
+    # PowerShell 7+ parameters
+    if ($UseParallelProcessing) { $CleanupConfig.UseParallelProcessing = $true }
+    if ($NoUseParallelProcessing) { $CleanupConfig.UseParallelProcessing = $false }
+    
+    if ($EnableTelemetry) { $CleanupConfig.EnableTelemetry = $true }
+    if ($NoEnableTelemetry) { $CleanupConfig.EnableTelemetry = $false }
 }
 
 # Global variables
 $Global:TotalFilesDeleted = 0
 $Global:TotalSpaceFreed = 0
 $Global:StartTime = Get-Date
-
-# =============================================
-# SYSTEM CHECK FUNCTIONS
-# =============================================
-
-function Test-AdminPrivileges {
-    try {
-        $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
-        $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
-        return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-    }
-    catch {
-        return $false
-    }
-}
-
-function Test-ExecutionPolicy {
-    try {
-        $policy = Get-ExecutionPolicy
-        return $policy -ne "Restricted"
-    }
-    catch {
-        return $false
-    }
-}
-
-function Test-WindowsVersion {
-    try {
-        $os = Get-WmiObject -Class Win32_OperatingSystem
-        $version = [version]$os.Version
-        return $version.Major -ge 10
-    }
-    catch {
-        return $false
-    }
-}
-
-function Show-SystemRequirements {
-    Write-Host "System Requirements Check:" -ForegroundColor Cyan
-    Write-Host "  Administrator Privileges: $(if (Test-AdminPrivileges) {'PASS'} else {'FAIL'})" -ForegroundColor $(if (Test-AdminPrivileges) {'Green'} else {'Red'})
-    Write-Host "  Execution Policy: $(if (Test-ExecutionPolicy) {'PASS'} else {'FAIL'})" -ForegroundColor $(if (Test-ExecutionPolicy) {'Green'} else {'Red'})
-    Write-Host "  Windows Version: $(if (Test-WindowsVersion) {'PASS'} else {'FAIL'})" -ForegroundColor $(if (Test-WindowsVersion) {'Green'} else {'Red'})
-    Write-Host ""
-}
-
-function Test-SystemRequirements {
-    $requirementsMet = $true
-    
-    if (-not (Test-AdminPrivileges)) {
-        Write-Error "This script requires Administrator privileges. Please run as Administrator."
-        $requirementsMet = $false
-    }
-    
-    if (-not (Test-ExecutionPolicy)) {
-        Write-Error "Execution Policy is set to Restricted. Please set to RemoteSigned or Unrestricted."
-        Write-Host "Run: Set-ExecutionPolicy RemoteSigned -Scope CurrentUser" -ForegroundColor Yellow
-        $requirementsMet = $false
-    }
-    
-    if (-not (Test-WindowsVersion)) {
-        Write-Error "This script requires Windows 10 or newer."
-        $requirementsMet = $false
-    }
-    
-    return $requirementsMet
+$Global:CleanupStatistics = @{
+    OperationsCompleted = 0
+    OperationsFailed = 0
+    OperationsSkipped = 0
 }
 
 # =============================================
-# UTILITY FUNCTIONS
+# ENHANCED UTILITY FUNCTIONS (PS7+ COMPATIBLE)
 # =============================================
 
 function Format-FileSize {
     param([long]$Size)
 
-    if ($Size -gt 1GB) { return "{0:N2} GB" -f ($Size / 1GB) }
+    if ($Size -gt 1TB) { return "{0:N2} TB" -f ($Size / 1TB) }
+    elseif ($Size -gt 1GB) { return "{0:N2} GB" -f ($Size / 1GB) }
     elseif ($Size -gt 1MB) { return "{0:N2} MB" -f ($Size / 1MB) }
     elseif ($Size -gt 1KB) { return "{0:N2} KB" -f ($Size / 1KB) }
     else { return "$Size bytes" }
@@ -455,16 +504,28 @@ function Get-PathSize {
     if (-not (Test-Path $Path)) { return 0 }
 
     $totalSize = 0
-    if (Test-Path $Path -PathType Container) {
-        $items = Get-ChildItem $Path -Recurse -Force -ErrorAction SilentlyContinue
-        foreach ($item in $items) {
-            if (-not $item.PSIsContainer) {
-                $totalSize += $item.Length
+    try {
+        if (Test-Path $Path -PathType Container) {
+            # Use faster method for PS7+
+            if ($Script:IsPS7Plus) {
+                $items = Get-ChildItem $Path -Recurse -Force -ErrorAction SilentlyContinue -File
+                $totalSize = ($items | Measure-Object -Property Length -Sum).Sum
+            } else {
+                # Backward compatible method for PS5
+                $items = Get-ChildItem $Path -Recurse -Force -ErrorAction SilentlyContinue
+                foreach ($item in $items) {
+                    if (-not $item.PSIsContainer) {
+                        $totalSize += $item.Length
+                    }
+                }
             }
+        } else {
+            $file = Get-Item $Path -ErrorAction SilentlyContinue
+            if ($file) { $totalSize = $file.Length }
         }
-    } else {
-        $file = Get-Item $Path -ErrorAction SilentlyContinue
-        if ($file) { $totalSize = $file.Length }
+    }
+    catch {
+        Write-Debug "Error calculating size for path: $Path - $($_.Exception.Message)"
     }
 
     return $totalSize
@@ -479,12 +540,25 @@ function Write-LogMessage {
     $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $logMessage = "[$timestamp] [$Level] $Message"
 
-    switch ($Level) {
-        "Error" { Write-Host $logMessage -ForegroundColor Red }
-        "Warning" { Write-Host $logMessage -ForegroundColor Yellow }
-        "Success" { Write-Host $logMessage -ForegroundColor Green }
-        "DryRun" { Write-Host $logMessage -ForegroundColor Cyan }
-        default { Write-Host $logMessage }
+    # PowerShell 7+ supports better color handling
+    if ($Script:IsPS7Plus) {
+        switch ($Level) {
+            "Error" { Write-Host $logMessage -ForegroundColor Red }
+            "Warning" { Write-Host $logMessage -ForegroundColor Yellow }
+            "Success" { Write-Host $logMessage -ForegroundColor Green }
+            "DryRun" { Write-Host $logMessage -ForegroundColor Cyan }
+            "Debug" { Write-Host $logMessage -ForegroundColor Gray }
+            "Safety" { Write-Host $logMessage -ForegroundColor Magenta }
+            default { Write-Host $logMessage }
+        }
+    } else {
+        # Fallback for PowerShell 5
+        switch ($Level) {
+            "Error" { Write-Host $logMessage -ForegroundColor Red }
+            "Warning" { Write-Host $logMessage -ForegroundColor Yellow }
+            "Success" { Write-Host $logMessage -ForegroundColor Green }
+            default { Write-Host $logMessage }
+        }
     }
 
     try {
@@ -499,6 +573,27 @@ function Write-LogMessage {
         } catch {
             # If all logging fails, just continue
         }
+    }
+
+    # Enhanced telemetry for PS7+
+    if ($CleanupConfig.EnableTelemetry -and $Script:IsPS7Plus) {
+        Update-Telemetry -Message $Message -Level $Level
+    }
+}
+
+function Update-Telemetry {
+    param(
+        [string]$Message,
+        [string]$Level
+    )
+
+    if (-not $CleanupConfig.EnableTelemetry) { return }
+
+    $Global:CleanupStatistics.OperationsCompleted++
+    
+    switch ($Level) {
+        "Error" { $Global:CleanupStatistics.OperationsFailed++ }
+        "Skipped" { $Global:CleanupStatistics.OperationsSkipped++ }
     }
 }
 
@@ -531,7 +626,6 @@ function Write-SuccessInfo {
     $fullMessage = $icon + " " + $Message
     if ($FilesCount -gt 0) { $fullMessage += " - $FilesCount files" + $spaceText }
 
-
     $isDryRun = $DryRun -or $DryRunShort -or $dryRunRequested
     if ($isDryRun) {
         Write-LogMessage "[DRY RUN] $fullMessage" -Level DryRun
@@ -539,6 +633,7 @@ function Write-SuccessInfo {
         Write-LogMessage $fullMessage -Level Success
         $Global:TotalFilesDeleted += $FilesCount
         $Global:TotalSpaceFreed += $SpaceFreed
+        Update-Telemetry -Message $Message -Level "Success"
     }
 }
 
@@ -547,6 +642,7 @@ function Write-ErrorInfo {
 
     $icon = [char]::ConvertFromUtf32(0x274C)
     Write-LogMessage ($icon + " " + $Message) -Level Error
+    Update-Telemetry -Message $Message -Level "Error"
 }
 
 function Write-SkippedInfo {
@@ -554,7 +650,196 @@ function Write-SkippedInfo {
 
     $icon = [char]::ConvertFromUtf32(0x23ED)
     Write-LogMessage ($icon + " SKIPPED: " + $Message) -Level Warning
+    Update-Telemetry -Message $Message -Level "Skipped"
 }
+
+function Write-SafetyInfo {
+    param([string]$Message)
+
+    $icon = [char]::ConvertFromUtf32(0x1F6E1)
+    Write-LogMessage ($icon + " SAFETY: " + $Message) -Level Safety
+}
+
+# =============================================
+# SAFETY AND BACKUP FUNCTIONS
+# =============================================
+
+function Start-SystemRestorePointCreation {
+    Write-SafetyInfo "Launching System Restore Point creation dialog..."
+    
+    try {
+        # Launch System Properties with System Protection tab focused
+        Start-Process "sysdm.cpl" -ArgumentList ",4" -Wait
+        Write-SuccessInfo "System Restore Point dialog launched successfully"
+        return $true
+    }
+    catch {
+        Write-ErrorInfo "Failed to launch System Restore Point dialog: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+function Start-SystemImageBackup {
+    Write-SafetyInfo "Launching System Image Backup creation tool..."
+    
+    try {
+        # Launch Windows 10/11 Backup and Restore (Windows 7) tool for system image creation
+        Start-Process "sdclt.exe" -ArgumentList "/BLBBACKUP" -Wait
+        Write-SuccessInfo "System Image Backup tool launched successfully"
+        return $true
+    }
+    catch {
+        Write-ErrorInfo "Failed to launch System Image Backup tool: $($_.Exception.Message)"
+        return $false
+    }
+}
+
+function Confirm-RestorePointCreated {
+    $title = "System Restore Point Confirmation"
+    $message = "I have created a system restore point and want to continue with the cleanup (Yes/No)"
+    
+    $choices = @(
+        [System.Management.Automation.Host.ChoiceDescription]::new("&Yes", "Continue with cleanup after creating restore point"),
+        [System.Management.Automation.Host.ChoiceDescription]::new("&No", "Abort the cleanup process")
+    )
+    
+    $decision = $Host.UI.PromptForChoice($title, $message, $choices, 0)
+    
+    return $decision -eq 0
+}
+
+function Confirm-DangerousOperation {
+    param(
+        [string]$OperationName,
+        [string]$Description,
+        [string]$RiskLevel
+    )
+    
+    if ($Force -or $ForceShort) {
+        Write-SafetyInfo "Force mode enabled - bypassing confirmation for: $Description"
+        return $true
+    }
+    
+    if (-not $CleanupConfig.SafetyModeEnabled) {
+        Write-SafetyInfo "Safety mode disabled - proceeding with: $Description"
+        return $true
+    }
+    
+    $title = "DANGEROUS OPERATION CONFIRMATION"
+    $message = @"
+RISK LEVEL: $RiskLevel
+
+OPERATION: $Description
+
+This operation may have significant system impact:
+- Data loss potential
+- System instability risk
+- Irreversible changes
+
+Do you want to proceed with this operation?
+"@
+    
+    $choices = @(
+        [System.Management.Automation.Host.ChoiceDescription]::new("&Proceed", "Continue with this operation (not recommended)"),
+        [System.Management.Automation.Host.ChoiceDescription]::new("&Skip", "Skip this operation and continue safely")
+    )
+    
+    $decision = $Host.UI.PromptForChoice($title, $message, $choices, 1)
+    
+    return $decision -eq 0
+}
+
+# =============================================
+# SYSTEM CHECK FUNCTIONS (ENHANCED FOR PS7+)
+# =============================================
+
+function Test-AdminPrivileges {
+    try {
+        if ($Script:IsPS7Plus) {
+            # Modern approach for PS7+
+            return ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        } else {
+            # Backward compatible approach
+            $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent()
+            $principal = New-Object Security.Principal.WindowsPrincipal($currentUser)
+            return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+        }
+    }
+    catch {
+        return $false
+    }
+}
+
+function Test-ExecutionPolicy {
+    try {
+        $policy = Get-ExecutionPolicy
+        return $policy -ne "Restricted"
+    }
+    catch {
+        return $false
+    }
+}
+
+function Test-WindowsVersion {
+    try {
+        if ($Script:IsPS7Plus -and $Script:IsWindowsPlatform) {
+            # Modern CIM approach for PS7+
+            $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+            $version = [version]$os.Version
+            return $version.Major -ge 10
+        } else {
+            # Backward compatible WMI approach
+            $os = Get-WmiObject -Class Win32_OperatingSystem -ErrorAction Stop
+            $version = [version]$os.Version
+            return $version.Major -ge 10
+        }
+    }
+    catch {
+        return $false
+    }
+}
+
+function Show-SystemRequirements {
+    Write-Host "System Requirements Check:" -ForegroundColor Cyan
+    Write-Host "  PowerShell Version: $($PSVersionTable.PSVersion)" -ForegroundColor $(if ($Script:IsPS7Plus) {'Green'} else {'Yellow'})
+    Write-Host "  Platform: $($PSVersionTable.Platform)" -ForegroundColor Green
+    Write-Host "  Administrator Privileges: $(if (Test-AdminPrivileges) {'PASS'} else {'FAIL'})" -ForegroundColor $(if (Test-AdminPrivileges) {'Green'} else {'Red'})
+    Write-Host "  Execution Policy: $(if (Test-ExecutionPolicy) {'PASS'} else {'FAIL'})" -ForegroundColor $(if (Test-ExecutionPolicy) {'Green'} else {'Red'})
+    Write-Host "  Windows Version: $(if (Test-WindowsVersion) {'PASS'} else {'FAIL'})" -ForegroundColor $(if (Test-WindowsVersion) {'Green'} else {'Red'})
+    Write-Host "  Safety Mode: $(if ($CleanupConfig.SafetyModeEnabled) {'ENABLED'} else {'DISABLED'})" -ForegroundColor $(if ($CleanupConfig.SafetyModeEnabled) {'Green'} else {'Yellow'})
+    Write-Host "  Parallel Processing: $(if ($CleanupConfig.UseParallelProcessing) {'ENABLED'} else {'DISABLED'})" -ForegroundColor $(if ($CleanupConfig.UseParallelProcessing) {'Green'} else {'Yellow'})
+    Write-Host ""
+}
+
+function Test-SystemRequirements {
+    $requirementsMet = $true
+    
+    if (-not (Test-AdminPrivileges)) {
+        Write-Error "This script requires Administrator privileges. Please run as Administrator."
+        $requirementsMet = $false
+    }
+    
+    if (-not (Test-ExecutionPolicy)) {
+        Write-Error "Execution Policy is set to Restricted. Please set to RemoteSigned or Unrestricted."
+        Write-Host "Run: Set-ExecutionPolicy RemoteSigned -Scope CurrentUser" -ForegroundColor Yellow
+        $requirementsMet = $false
+    }
+    
+    if (-not (Test-WindowsVersion)) {
+        Write-Error "This script requires Windows 10 or newer."
+        $requirementsMet = $false
+    }
+    
+    if (-not $Script:IsWindowsPlatform) {
+        Write-Warning "This script is designed for Windows. Some functionality may be limited."
+    }
+    
+    return $requirementsMet
+}
+
+# =============================================
+# ENHANCED CLEANUP FUNCTIONS (PS7+ OPTIMIZED)
+# =============================================
 
 function Remove-PathEnhanced {
     param(
@@ -578,14 +863,18 @@ function Remove-PathEnhanced {
         $filesCount = 1
     }
 
-
     $isDryRun = $DryRun -or $DryRunShort -or $dryRunRequested
     
     if ($isDryRun) {
         Write-SuccessInfo "[DRY RUN] Would remove $Description from $Path" -FilesCount $filesCount -SpaceFreed $beforeSize
     } else {
         try {
-            Remove-Item $Path -Recurse -Force -ErrorAction SilentlyContinue
+            # Use more efficient method for PS7+
+            if ($Script:IsPS7Plus) {
+                Get-ChildItem $Path -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            } else {
+                Remove-Item $Path -Recurse -Force -ErrorAction SilentlyContinue
+            }
             Write-SuccessInfo "Removed $Description from $Path" -FilesCount $filesCount -SpaceFreed $beforeSize
         }
         catch {
@@ -597,7 +886,6 @@ function Remove-PathEnhanced {
 function Stop-ProcessSafely {
     param([string[]]$ProcessNames)
 
-
     $isDryRun = $DryRun -or $DryRunShort -or $dryRunRequested
 
     foreach ($processName in $ProcessNames) {
@@ -607,7 +895,16 @@ function Stop-ProcessSafely {
                 Write-ProgressInfo "Process Control" "[DRY RUN] Would stop $($processes.Count) $processName processes"
             } else {
                 Write-ProgressInfo "Process Control" "Stopping $($processes.Count) $processName processes"
-                $processes | Stop-Process -Force -ErrorAction SilentlyContinue
+                
+                # Use more efficient process stopping for PS7+
+                if ($Script:IsPS7Plus -and $CleanupConfig.UseParallelProcessing) {
+                    $processes | ForEach-Object -Parallel {
+                        Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+                    } -ThrottleLimit 5
+                } else {
+                    $processes | Stop-Process -Force -ErrorAction SilentlyContinue
+                }
+                
                 Write-SuccessInfo "Stopped $($processes.Count) $processName processes"
             }
         }
@@ -627,7 +924,7 @@ function Get-UserProfiles {
 }
 
 # =============================================
-# CLEANUP FUNCTIONS
+# ENHANCED CLEANUP OPERATIONS WITH SAFETY CHECKS
 # =============================================
 
 function Clear-TempFiles {
@@ -674,6 +971,7 @@ function Clear-TempFiles {
         $tempPaths += "$env:WINDIR\Prefetch\*"
     }
 
+    # FIXED: Use sequential processing to avoid scope issues with parallel blocks
     foreach ($path in $tempPaths) {
         $parentPath = Split-Path $path -Parent
         $userName = if ($parentPath -like "*Users\*") { 
@@ -686,10 +984,14 @@ function Clear-TempFiles {
 }
 
 function Clear-BrowserCaches {
+    if (-not ($CleanupConfig.CleanChrome -or $CleanupConfig.CleanEdge -or $CleanupConfig.CleanFirefox -or $CleanupConfig.CleanOpera -or $CleanupConfig.CleanYandex)) {
+        Write-SkippedInfo "Browser Cache Cleanup (all browser cleanups disabled in config)"
+        return
+    }
+
     Write-ProgressInfo "Browser Cache Cleanup" "Cleaning browser caches $(if ($CleanupConfig.CleanForAllUsers) {'for all users'} else {'for current user'})"
 
     $userProfiles = Get-UserProfiles
-    $browserProcesses = @("chrome", "msedge", "firefox", "opera", "yandex")
 
     foreach ($profile in $userProfiles) {
         $userName = $profile.Name
@@ -775,8 +1077,13 @@ function Clear-RecycleBin {
         return
     }
 
-    Write-ProgressInfo "Recycle Bin Cleanup" "Emptying Recycle Bin $(if ($CleanupConfig.CleanForAllUsers) {'for all users'} else {'for current user'})"
+    # Safety check for dangerous operation
+    if (-not (Confirm-DangerousOperation -OperationName "CleanRecycleBin" -Description "Permanent deletion of Recycle Bin contents" -RiskLevel "Medium")) {
+        Write-SkippedInfo "Recycle Bin Cleanup - skipped by user choice"
+        return
+    }
 
+    Write-ProgressInfo "Recycle Bin Cleanup" "Emptying Recycle Bin $(if ($CleanupConfig.CleanForAllUsers) {'for all users'} else {'for current user'})"
 
     $isDryRun = $DryRun -or $DryRunShort -or $dryRunRequested
 
@@ -792,13 +1099,18 @@ function Clear-RecycleBin {
         if ($isDryRun) {
             Write-SuccessInfo "[DRY RUN] Would clean Recycle Bin for current user"
         } else {
-            $shell = New-Object -ComObject Shell.Application
-            $items = $shell.NameSpace(0xA).Items()
-            $itemCount = $items.Count
-            foreach ($item in $items) {
-                Remove-Item $item.Path -Recurse -Force -ErrorAction SilentlyContinue
+            try {
+                $shell = New-Object -ComObject Shell.Application
+                $items = $shell.NameSpace(0xA).Items()
+                $itemCount = $items.Count
+                foreach ($item in $items) {
+                    Remove-Item $item.Path -Recurse -Force -ErrorAction SilentlyContinue
+                }
+                Write-SuccessInfo "Cleaned Recycle Bin for current user - $itemCount items removed"
             }
-            Write-SuccessInfo "Cleaned Recycle Bin for current user - $itemCount items removed"
+            catch {
+                Write-ErrorInfo "Failed to clean Recycle Bin: $($_.Exception.Message)"
+            }
         }
     }
 }
@@ -811,33 +1123,37 @@ function Clear-WindowsUpdateCache {
 
     Write-ProgressInfo "Windows Update Cache" "Cleaning Windows Update cache"
 
-
     $isDryRun = $DryRun -or $DryRunShort -or $dryRunRequested
 
     if ($isDryRun) {
         Write-ProgressInfo "Service Control" "[DRY RUN] Would stop Windows Update service"
         Write-ProgressInfo "Service Control" "[DRY RUN] Would restart Windows Update service"
     } else {
-        $wuService = Get-Service -Name wuauserv -ErrorAction SilentlyContinue
-        $wuServiceRunning = $false
-        if ($wuService -and $wuService.Status -eq 'Running') {
-            $wuServiceRunning = $true
-            Stop-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
-            Write-ProgressInfo "Service Control" "Stopped Windows Update service"
+        try {
+            $wuService = Get-Service -Name wuauserv -ErrorAction SilentlyContinue
+            $wuServiceRunning = $false
+            if ($wuService -and $wuService.Status -eq 'Running') {
+                $wuServiceRunning = $true
+                Stop-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
+                Write-ProgressInfo "Service Control" "Stopped Windows Update service"
+            }
+
+            $updatePaths = @(
+                "$env:WINDIR\SoftwareDistribution\Download\*",
+                "$env:WINDIR\System32\catroot2\*"
+            )
+
+            foreach ($path in $updatePaths) {
+                Remove-PathEnhanced -Path $path -Description "Windows Update cache"
+            }
+
+            if ($wuServiceRunning) {
+                Start-Service -Name wuauserv -ErrorAction SilentlyContinue
+                Write-ProgressInfo "Service Control" "Restarted Windows Update service"
+            }
         }
-
-        $updatePaths = @(
-            "$env:WINDIR\SoftwareDistribution\Download\*",
-            "$env:WINDIR\System32\catroot2\*"
-        )
-
-        foreach ($path in $updatePaths) {
-            Remove-PathEnhanced -Path $path -Description "Windows Update cache"
-        }
-
-        if ($wuServiceRunning) {
-            Start-Service -Name wuauserv -ErrorAction SilentlyContinue
-            Write-ProgressInfo "Service Control" "Restarted Windows Update service"
+        catch {
+            Write-ErrorInfo "Failed to clean Windows Update cache: $($_.Exception.Message)"
         }
     }
 }
@@ -848,8 +1164,13 @@ function Clear-EventLogs {
         return
     }
 
-    Write-ProgressInfo "Event Logs Cleanup" "Archiving and clearing Windows Event Logs"
+    # Safety check for dangerous operation
+    if (-not (Confirm-DangerousOperation -OperationName "CleanEventLogs" -Description "Clearing Windows Event Logs (loss of audit trail)" -RiskLevel "Medium")) {
+        Write-SkippedInfo "Event Logs Cleanup - skipped by user choice"
+        return
+    }
 
+    Write-ProgressInfo "Event Logs Cleanup" "Archiving and clearing Windows Event Logs"
 
     $isDryRun = $DryRun -or $DryRunShort -or $dryRunRequested
 
@@ -859,18 +1180,27 @@ function Clear-EventLogs {
         if ($isDryRun) {
             Write-SuccessInfo "[DRY RUN] Would archive and clear $logName event log"
         } else {
-            $archivePath = "$env:TEMP\EventLogBackup_$(Get-Date -Format 'yyyyMMdd')"
-            if (-not (Test-Path $archivePath)) {
-                New-Item -ItemType Directory -Path $archivePath -Force | Out-Null
+            try {
+                $archivePath = "$env:TEMP\EventLogBackup_$(Get-Date -Format 'yyyyMMdd')"
+                if (-not (Test-Path $archivePath)) {
+                    New-Item -ItemType Directory -Path $archivePath -Force | Out-Null
+                }
+                
+                $backupFile = Join-Path $archivePath "$logName`_$(Get-Date -Format 'yyyyMMdd').evtx"
+                wevtutil export-log $logName $backupFile /overwrite:true 2>$null
+                wevtutil clear-log $logName 2>$null
+                Write-SuccessInfo "Archived and cleared $logName event log"
             }
-            
-            $backupFile = Join-Path $archivePath "$logName`_$(Get-Date -Format 'yyyyMMdd').evtx"
-            wevtutil export-log $logName $backupFile /overwrite:true 2>$null
-            wevtutil clear-log $logName 2>$null
-            Write-SuccessInfo "Archived and cleared $logName event log"
+            catch {
+                Write-ErrorInfo "Failed to archive and clear $logName event log: $($_.Exception.Message)"
+            }
         }
     }
 }
+
+# =============================================
+# MISSING FUNCTION DEFINITIONS - ADDED BACK
+# =============================================
 
 function Clear-ErrorReports {
     if (-not $CleanupConfig.CleanErrorReports) {
@@ -1021,54 +1351,6 @@ function Clear-SystemCache {
     }
 }
 
-function Run-SystemFileChecker {
-    if (-not $CleanupConfig.RunSFC) {
-        Write-SkippedInfo "System File Checker (disabled in config)"
-        return
-    }
-
-    Write-ProgressInfo "System File Checker" "Running SFC scan"
-
-
-    $isDryRun = $DryRun -or $DryRunShort -or $dryRunRequested
-
-    if ($isDryRun) {
-        Write-SuccessInfo "[DRY RUN] Would run SFC /scannow"
-    } else {
-        $null = sfc /scannow
-        Write-SuccessInfo "System integrity check completed"
-    }
-}
-
-function Optimize-ComponentStore {
-    if (-not $CleanupConfig.OptimizeComponents) {
-        Write-SkippedInfo "Component Store Optimization (disabled in config)"
-        return
-    }
-
-    Write-ProgressInfo "Component Store Optimization" "Optimizing Windows Component Store"
-
-
-    $isDryRun = $DryRun -or $DryRunShort -or $dryRunRequested
-
-    if ($isDryRun) {
-        Write-SuccessInfo "[DRY RUN] Would run DISM component cleanup"
-    } else {
-        $null = dism /online /cleanup-image /startcomponentcleanup /quiet
-        Write-SuccessInfo "Component store optimization completed"
-    }
-
-    if ($CleanupConfig.CleanDISMLogs) {
-        $dismLogPath = "$env:WINDIR\Logs\DISM\*"
-        Remove-PathEnhanced -Path $dismLogPath -Description "DISM logs"
-    }
-}
-
-
-# =============================================
-# ENHANCED COMPONENT CLEANUP FUNCTIONS
-# =============================================
-
 function Start-ComponentCleanupTask {
     if (-not $CleanupConfig.RunComponentCleanupTask) {
         Write-SkippedInfo "Component Cleanup Task (disabled in config)"
@@ -1083,47 +1365,32 @@ function Start-ComponentCleanupTask {
         Write-SuccessInfo "[DRY RUN] Would run: schtasks.exe /Run /TN \Microsoft\Windows\Servicing\StartComponentCleanup"
     } else {
         try {
-            # Правильный вызов schtasks с экранированием путей
-            $taskName = "\\Microsoft\\Windows\\Servicing\\StartComponentCleanup"
-            $result = schtasks.exe /Run /TN $taskName
-            if ($LASTEXITCODE -eq 0) {
+            # FIXED: Use correct task name format without double backslashes
+            $taskName = "\Microsoft\Windows\Servicing\StartComponentCleanup"
+            Write-LogMessage "Attempting to run scheduled task: $taskName" -Level Debug
+            
+            # Method 1: Direct schtasks call
+            $process = Start-Process -FilePath "schtasks.exe" -ArgumentList @("/Run", "/TN", $taskName) -Wait -PassThru -NoNewWindow
+            
+            if ($process.ExitCode -eq 0) {
                 Write-SuccessInfo "Started Component Cleanup scheduled task"
             } else {
-                Write-ErrorInfo "Failed to start Component Cleanup task - Exit code: $LASTEXITCODE"
+                Write-ErrorInfo "Failed to start Component Cleanup task - Exit code: $($process.ExitCode)"
+                
+                # Method 2: Alternative approach using different syntax
+                Write-LogMessage "Trying alternative method..." -Level Debug
+                $result = cmd.exe /c "schtasks /Run /TN `"$taskName`""
+                
+                if ($LASTEXITCODE -eq 0) {
+                    Write-SuccessInfo "Started Component Cleanup scheduled task (alternative method)"
+                } else {
+                    Write-ErrorInfo "All methods failed to start Component Cleanup task"
+                    Write-LogMessage "Task might not exist or require different permissions" -Level Warning
+                }
             }
         }
         catch {
             Write-ErrorInfo "Failed to start Component Cleanup task - $($_.Exception.Message)"
-        }
-    }
-}
-
-function Invoke-DISMAdvancedCleanup {
-    if (-not $CleanupConfig.RunDISMAdvanced) {
-        Write-SkippedInfo "DISM Advanced Cleanup (disabled in config)"
-        return
-    }
-
-    Write-ProgressInfo "DISM Advanced Cleanup" "Running advanced DISM cleanup operations"
-    
-    $isDryRun = $DryRun -or $DryRunShort -or $dryRunRequested
-    
-    $dismCommands = @(
-        @{ Command = "/online /Cleanup-Image /SPSuperseded"; Description = "Remove superseded components" },
-        @{ Command = "/online /Cleanup-Image /StartComponentCleanup /ResetBase"; Description = "Component cleanup with reset base" }
-    )
-    
-    foreach ($dismCmd in $dismCommands) {
-        if ($isDryRun) {
-            Write-SuccessInfo "[DRY RUN] Would run: DISM.exe $($dismCmd.Command)"
-        } else {
-            try {
-                $null = dism.exe $dismCmd.Command.Split(' ') 2>&1
-                Write-SuccessInfo "DISM: $($dismCmd.Description)"
-            }
-            catch {
-                Write-ErrorInfo "DISM failed: $($dismCmd.Description) - $($_.Exception.Message)"
-            }
         }
     }
 }
@@ -1153,9 +1420,102 @@ function Invoke-ComponentStoreAnalysis {
     }
 }
 
+function Run-SystemFileChecker {
+    if (-not $CleanupConfig.RunSFC) {
+        Write-SkippedInfo "System File Checker (disabled in config)"
+        return
+    }
+
+    Write-ProgressInfo "System File Checker" "Running SFC scan"
+
+    $isDryRun = $DryRun -or $DryRunShort -or $dryRunRequested
+
+    if ($isDryRun) {
+        Write-SuccessInfo "[DRY RUN] Would run SFC /scannow"
+    } else {
+        try {
+            $result = sfc /scannow
+            Write-SuccessInfo "System integrity check completed"
+        }
+        catch {
+            Write-ErrorInfo "System File Checker failed: $($_.Exception.Message)"
+        }
+    }
+}
+
+function Optimize-ComponentStore {
+    if (-not $CleanupConfig.OptimizeComponents) {
+        Write-SkippedInfo "Component Store Optimization (disabled in config)"
+        return
+    }
+
+    Write-ProgressInfo "Component Store Optimization" "Optimizing Windows Component Store"
+
+    $isDryRun = $DryRun -or $DryRunShort -or $dryRunRequested
+
+    if ($isDryRun) {
+        Write-SuccessInfo "[DRY RUN] Would run DISM component cleanup"
+    } else {
+        try {
+            $result = dism /online /cleanup-image /startcomponentcleanup /quiet
+            Write-SuccessInfo "Component store optimization completed"
+        }
+        catch {
+            Write-ErrorInfo "Component store optimization failed: $($_.Exception.Message)"
+        }
+    }
+
+    if ($CleanupConfig.CleanDISMLogs) {
+        $dismLogPath = "$env:WINDIR\Logs\DISM\*"
+        Remove-PathEnhanced -Path $dismLogPath -Description "DISM logs"
+    }
+}
+
+function Invoke-DISMAdvancedCleanup {
+    if (-not $CleanupConfig.RunDISMAdvanced) {
+        Write-SkippedInfo "DISM Advanced Cleanup (disabled in config)"
+        return
+    }
+
+    # Safety check for dangerous operation
+    if (-not (Confirm-DangerousOperation -OperationName "RunDISMAdvanced" -Description "Advanced DISM operations (system component modification)" -RiskLevel "High")) {
+        Write-SkippedInfo "DISM Advanced Cleanup - skipped by user choice"
+        return
+    }
+
+    Write-ProgressInfo "DISM Advanced Cleanup" "Running advanced DISM cleanup operations"
+    
+    $isDryRun = $DryRun -or $DryRunShort -or $dryRunRequested
+    
+    $dismCommands = @(
+        @{ Command = "/online /Cleanup-Image /SPSuperseded"; Description = "Remove superseded components" },
+        @{ Command = "/online /Cleanup-Image /StartComponentCleanup /ResetBase"; Description = "Component cleanup with reset base" }
+    )
+    
+    foreach ($dismCmd in $dismCommands) {
+        if ($isDryRun) {
+            Write-SuccessInfo "[DRY RUN] Would run: DISM.exe $($dismCmd.Command)"
+        } else {
+            try {
+                $null = dism.exe $dismCmd.Command.Split(' ') 2>&1
+                Write-SuccessInfo "DISM: $($dismCmd.Description)"
+            }
+            catch {
+                Write-ErrorInfo "DISM failed: $($dismCmd.Description) - $($_.Exception.Message)"
+            }
+        }
+    }
+}
+
 function Clear-WindowsUpdateFull {
     if (-not $CleanupConfig.CleanWindowsUpdateFull) {
         Write-SkippedInfo "Windows Update Full Cleanup (disabled in config)"
+        return
+    }
+
+    # Safety check for dangerous operation
+    if (-not (Confirm-DangerousOperation -OperationName "CleanWindowsUpdateFull" -Description "Complete Windows Update cache removal (requires service restart)" -RiskLevel "High")) {
+        Write-SkippedInfo "Windows Update Full Cleanup - skipped by user choice"
         return
     }
 
@@ -1168,22 +1528,27 @@ function Clear-WindowsUpdateFull {
         Write-SuccessInfo "[DRY RUN] Would remove entire SoftwareDistribution folder"
         Write-ProgressInfo "Service Control" "[DRY RUN] Would restart Windows Update service"
     } else {
-        $wuService = Get-Service -Name wuauserv -ErrorAction SilentlyContinue
-        $wuServiceRunning = $false
-        if ($wuService -and $wuService.Status -eq 'Running') {
-            $wuServiceRunning = $true
-            Stop-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
-            Write-ProgressInfo "Service Control" "Stopped Windows Update service for full cleanup"
-        }
+        try {
+            $wuService = Get-Service -Name wuauserv -ErrorAction SilentlyContinue
+            $wuServiceRunning = $false
+            if ($wuService -and $wuService.Status -eq 'Running') {
+                $wuServiceRunning = $true
+                Stop-Service -Name wuauserv -Force -ErrorAction SilentlyContinue
+                Write-ProgressInfo "Service Control" "Stopped Windows Update service for full cleanup"
+            }
 
-        $softwareDistributionPath = "$env:WINDIR\SoftwareDistribution"
-        if (Test-Path $softwareDistributionPath) {
-            Remove-PathEnhanced -Path $softwareDistributionPath -Description "Windows Update SoftwareDistribution folder"
-        }
+            $softwareDistributionPath = "$env:WINDIR\SoftwareDistribution"
+            if (Test-Path $softwareDistributionPath) {
+                Remove-PathEnhanced -Path $softwareDistributionPath -Description "Windows Update SoftwareDistribution folder"
+            }
 
-        if ($wuServiceRunning) {
-            Start-Service -Name wuauserv -ErrorAction SilentlyContinue
-            Write-ProgressInfo "Service Control" "Restarted Windows Update service"
+            if ($wuServiceRunning) {
+                Start-Service -Name wuauserv -ErrorAction SilentlyContinue
+                Write-ProgressInfo "Service Control" "Restarted Windows Update service"
+            }
+        }
+        catch {
+            Write-ErrorInfo "Failed to perform full Windows Update cleanup: $($_.Exception.Message)"
         }
     }
 }
@@ -1194,21 +1559,31 @@ function Clear-PatchCache {
         return
     }
 
+    # Safety check for dangerous operation
+    if (-not (Confirm-DangerousOperation -OperationName "CleanPatchCache" -Description "Windows Installer patch cache removal" -RiskLevel "High")) {
+        Write-SkippedInfo "Patch Cache Cleanup - skipped by user choice"
+        return
+    }
+
     Write-ProgressInfo "Patch Cache Cleanup" "Cleaning Windows Installer patch cache"
     
-    $patchCachePath = "$env:WINDIR\Installer\$PatchCache$"
-    Remove-PathEnhanced -Path $patchCachePath -Description "Windows Installer patch cache"
+    # FIXED: Correct patch cache path
+    $patchCachePaths = @(
+        "$env:WINDIR\Installer\*.tmp",
+        "$env:WINDIR\Installer\PatchCache\*"
+    )
+    
+    foreach ($patchCachePath in $patchCachePaths) {
+        Remove-PathEnhanced -Path $patchCachePath -Description "Windows Installer patch cache"
+    }
 }
 
-
-
 # =============================================
-# MAIN EXECUTION
+# MAIN EXECUTION (ENHANCED FOR PS7+ WITH SAFETY)
 # =============================================
 
 function Start-WindowsCleanup {
     Update-ConfigurationFromParameters
-
 
     $isDryRun = $DryRun -or $DryRunShort -or $dryRunRequested
 
@@ -1219,17 +1594,38 @@ function Start-WindowsCleanup {
     }
 
     Write-ProgressInfo "Windows Cleanup Started" "Beginning comprehensive system cleanup"
+    Write-LogMessage "PowerShell Version: $($PSVersionTable.PSVersion)"
+    Write-LogMessage "Platform: $($PSVersionTable.Platform)"
     Write-LogMessage "Log file: $LogPath"
     Write-LogMessage "User scope: $(if ($CleanupConfig.CleanForAllUsers) {'All Users'} else {'Current User Only'})"
     Write-LogMessage "Dry Run Mode: $(if ($isDryRun) {'ENABLED'} else {'DISABLED'})"
+    Write-LogMessage "Safety Mode: $(if ($CleanupConfig.SafetyModeEnabled) {'ENABLED'} else {'DISABLED'})"
+    Write-LogMessage "Force Mode: $(if ($Force -or $ForceShort) {'ENABLED'} else {'DISABLED'})"
+    Write-LogMessage "Parallel Processing: $(if ($CleanupConfig.UseParallelProcessing) {'ENABLED'} else {'DISABLED'})"
+    Write-LogMessage "Enhanced Telemetry: $(if ($CleanupConfig.EnableTelemetry) {'ENABLED'} else {'DISABLED'})"
 
     if ($isDryRun) {
         Write-LogMessage "DRY RUN MODE: No changes will be made to the system" -Level DryRun
     }
 
+    # System Restore Point creation before cleanup
+    if ($CleanupConfig.CreateRestorePointEnabled -and -not $isDryRun) {
+        Write-SafetyInfo "System Restore Point creation is enabled"
+        $restoreCreated = Start-SystemRestorePointCreation
+        if ($restoreCreated) {
+            if (-not (Confirm-RestorePointCreated)) {
+                Write-LogMessage "Cleanup aborted by user after restore point creation" -Level Warning
+                exit 0
+            }
+        } else {
+            Write-LogMessage "Failed to create restore point, but continuing with cleanup" -Level Warning
+        }
+    }
+
     $browserProcesses = @("chrome", "msedge", "firefox", "opera", "yandex")
     Stop-ProcessSafely -ProcessNames $browserProcesses
 
+    # Execute cleanup operations with safety checks
     Clear-TempFiles
     Clear-BrowserCaches
     Clear-RecycleBin
@@ -1241,18 +1637,34 @@ function Start-WindowsCleanup {
     Clear-AppCache
     Clear-DeliveryOptimization
     Clear-SystemCache
+    
+    # Enhanced cleanup operations with additional safety
     Start-ComponentCleanupTask
     Invoke-ComponentStoreAnalysis
     Invoke-DISMAdvancedCleanup
     Clear-WindowsUpdateFull
     Clear-PatchCache
+    
+    # System optimization (generally safe)
     Run-SystemFileChecker
     Optimize-ComponentStore
 
+    # System Image creation after cleanup
+    if ($CleanupConfig.CreateSystemImageEnabled -and -not $isDryRun) {
+        Write-SafetyInfo "System Image Backup creation is enabled"
+        Start-SystemImageBackup
+    }
+
+    # Enhanced reporting for PS7+
     $duration = (Get-Date) - $Global:StartTime
     $successIcon = [char]::ConvertFromUtf32(0x1F389)
 
     Write-LogMessage ""
+    Write-LogMessage "=== CLEANUP SUMMARY ===" -Level Info
+    Write-LogMessage "Operations Completed: $($Global:CleanupStatistics.OperationsCompleted)"
+    Write-LogMessage "Operations Failed: $($Global:CleanupStatistics.OperationsFailed)"
+    Write-LogMessage "Operations Skipped: $($Global:CleanupStatistics.OperationsSkipped)"
+    
     if ($isDryRun) {
         Write-LogMessage ($successIcon + " DRY RUN COMPLETED SUCCESSFULLY") -Level DryRun
         Write-LogMessage "Simulated files deleted: $Global:TotalFilesDeleted"
@@ -1264,30 +1676,62 @@ function Start-WindowsCleanup {
     }
     Write-LogMessage "Duration: $($duration.TotalMinutes.ToString('F2')) minutes"
     Write-LogMessage "Log saved to: $LogPath"
+    
+    # Additional telemetry for PS7+
+    if ($CleanupConfig.EnableTelemetry -and $Script:IsPS7Plus) {
+        Write-LogMessage "Performance: $([math]::Round($Global:CleanupStatistics.OperationsCompleted / $duration.TotalSeconds, 2)) ops/sec"
+    }
 }
 
 function Show-UsageHelp {
     Write-Host @"
-Windows System Cleanup Script v4.4
+Windows System Cleanup Script v5.2
+Enhanced for PowerShell 7+ with backward compatibility for PowerShell 5+
+Includes safety features and system backup options
 
 USAGE:
     .\Cleanup-Windows.ps1 [OPTIONS]
 
+SAFETY AND BACKUP OPTIONS:
+    -EnableSafetyMode, -safe    Enable safety confirmations for dangerous operations
+    -NoSafetyMode, -nsafe      Disable safety confirmations (not recommended)
+    -CreateRestorePoint, -rp   Launch System Restore Point creation before cleanup
+    -NoCreateRestorePoint, -nrp Skip System Restore Point creation
+    -CreateSystemImage, -img   Launch System Image Backup creation after cleanup
+    -NoCreateSystemImage, -nimg Skip System Image Backup creation
+    -Force, -f                 Force mode - bypass all safety confirmations
+
 EXAMPLES:
-    # Full cleanup for all users
-    .\Cleanup-Windows.ps1
+    # Full cleanup with safety features enabled
+    .\Cleanup-Windows.ps1 -EnableSafetyMode -CreateRestorePoint
 
-    # Dry run for current user only
-    .\Cleanup-Windows.ps1 -NoCleanForAllUsers -DryRun
+    # Force cleanup without any confirmations
+    .\Cleanup-Windows.ps1 -Force
 
-    # GNU-style dry run
-    .\Cleanup-Windows.ps1 --DryRun
+    # Dry run with restore point creation
+    .\Cleanup-Windows.ps1 -DryRun -CreateRestorePoint
 
-    # Show help
-    .\Cleanup-Windows.ps1 --Help
+    # Cleanup with system image backup
+    .\Cleanup-Windows.ps1 -CreateRestorePoint -CreateSystemImage
 
-    # Clean only browser caches
-    .\Cleanup-Windows.ps1 -NoCleanForAllUsers -CleanChrome -CleanEdge -NoCleanTempFiles -NoCleanRecycleBin
+DANGEROUS OPERATIONS (require confirmation in Safety Mode):
+    - Complete Windows Update cache removal
+    - Recycle Bin permanent deletion
+    - Windows Event Logs clearing
+    - Advanced DISM operations
+    - Windows Installer patch cache removal
+
+POWERSHELL 7+ ENHANCEMENTS:
+    - Parallel processing for faster cleanup
+    - Enhanced telemetry and performance metrics
+    - Improved error handling and logging
+    - Better color support in console
+    - Modern CIM commands instead of WMI
+
+COMPATIBILITY:
+    - Fully compatible with PowerShell 5.1 and Windows 10/11
+    - Enhanced features automatically enabled in PowerShell 7+
+    - Graceful degradation for older PowerShell versions
 "@
 }
 
