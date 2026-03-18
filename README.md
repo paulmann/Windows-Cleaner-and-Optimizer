@@ -49,19 +49,19 @@ git clone https://github.com/paulmann/Windows-Cleaner-and-Optimizer.git
 cd Windows-Cleaner-and-Optimizer
 
 # Basic cleanup with safety features
-.\Cleanup-Windows.ps1
+.\Cleanup-Windows-Senior.ps1
 
 # Enhanced safety with system restore point
-.\Cleanup-Windows.ps1 -EnableSafetyMode -CreateRestorePoint
+.\Cleanup-Windows-Senior.ps1 -EnableSafetyMode -CreateRestorePoint
 
 # Force mode for automated deployments
-.\Cleanup-Windows.ps1 -Force
+.\Cleanup-Windows-Senior.ps1 -Force
 
 # Dry run with safety confirmations
-.\Cleanup-Windows.ps1 -DryRun -EnableSafetyMode
+.\Cleanup-Windows-Senior.ps1 -DryRun -EnableSafetyMode
 
 # One-time bypass execution policy
-powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows.ps1" -EnableSafetyMode
+powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows-Senior.ps1" -EnableSafetyMode
 ```
 
 ### 2. Batch Version (Alternative - Legacy Support)
@@ -148,36 +148,36 @@ Version 5.2 introduces comprehensive safety features to prevent accidental data 
 
 ```powershell
 # Enable safety mode (recommended for interactive use)
-.\Cleanup-Windows.ps1 -EnableSafetyMode
+.\Cleanup-Windows-Senior.ps1 -EnableSafetyMode
 
 # Disable safety mode (use with caution)
-.\Cleanup-Windows.ps1 -NoSafetyMode
+.\Cleanup-Windows-Senior.ps1 -NoSafetyMode
 
 # Force mode bypasses all safety confirmations
-.\Cleanup-Windows.ps1 -Force
+.\Cleanup-Windows-Senior.ps1 -Force
 ```
 
 ### System Restore Point Integration
 
 ```powershell
 # Create restore point before cleanup
-.\Cleanup-Windows.ps1 -CreateRestorePoint
+.\Cleanup-Windows-Senior.ps1 -CreateRestorePoint
 
 # Skip restore point creation
-.\Cleanup-Windows.ps1 -NoCreateRestorePoint
+.\Cleanup-Windows-Senior.ps1 -NoCreateRestorePoint
 
 # Combined safety approach
-.\Cleanup-Windows.ps1 -EnableSafetyMode -CreateRestorePoint
+.\Cleanup-Windows-Senior.ps1 -EnableSafetyMode -CreateRestorePoint
 ```
 
 ### System Image Backup
 
 ```powershell
 # Launch system image backup after cleanup
-.\Cleanup-Windows.ps1 -CreateSystemImage
+.\Cleanup-Windows-Senior.ps1 -CreateSystemImage
 
 # Full safety configuration
-.\Cleanup-Windows.ps1 -EnableSafetyMode -CreateRestorePoint -CreateSystemImage
+.\Cleanup-Windows-Senior.ps1 -EnableSafetyMode -CreateRestorePoint -CreateSystemImage
 ```
 
 ### Dangerous Operations with Risk Assessment
@@ -202,23 +202,23 @@ The script automatically detects PowerShell version and enables enhanced feature
 # - Modern CIM commands
 # - Enhanced telemetry
 # - Improved color support
-.\Cleanup-Windows.ps1
+.\Cleanup-Windows-Senior.ps1
 
 # Manual control of PS7+ features
-.\Cleanup-Windows.ps1 -UseParallelProcessing -EnableTelemetry
+.\Cleanup-Windows-Senior.ps1 -UseParallelProcessing -EnableTelemetry
 ```
 
 ### Performance Optimizations
 
 ```powershell
 # Parallel processing for faster execution (PS7+ only)
-.\Cleanup-Windows.ps1 -UseParallelProcessing
+.\Cleanup-Windows-Senior.ps1 -UseParallelProcessing
 
 # Enhanced telemetry and performance metrics
-.\Cleanup-Windows.ps1 -EnableTelemetry
+.\Cleanup-Windows-Senior.ps1 -EnableTelemetry
 
 # Disable specific PS7+ features if needed
-.\Cleanup-Windows.ps1 -NoUseParallelProcessing -NoEnableTelemetry
+.\Cleanup-Windows-Senior.ps1 -NoUseParallelProcessing -NoEnableTelemetry
 ```
 
 ### Backward Compatibility
@@ -228,7 +228,7 @@ Full compatibility with PowerShell 5.1+ with graceful feature degradation:
 ```powershell
 # Works identically on PS5.1 and PS7+
 # Enhanced features automatically disabled on older versions
-.\Cleanup-Windows.ps1 -EnableSafetyMode -CreateRestorePoint
+.\Cleanup-Windows-Senior.ps1 -EnableSafetyMode -CreateRestorePoint
 ```
 
 ## 📋 Installation & Usage
@@ -253,7 +253,7 @@ git clone https://github.com/paulmann/Windows-Cleaner-and-Optimizer.git
 cd Windows-Cleaner-and-Optimizer
 
 # Choose your preferred version:
-# PowerShell (Enhanced): .\Cleanup-Windows.ps1
+# PowerShell (Enhanced): .\Cleanup-Windows-Senior.ps1
 # Batch (Legacy): .\Cleanup-Windows-Senior.bat
 ```
 
@@ -261,8 +261,8 @@ cd Windows-Cleaner-and-Optimizer
 
 ```powershell
 # PowerShell version (v5.2 with safety features)
-$url = 'https://github.com/paulmann/Windows-Cleaner-and-Optimizer/raw/main/Cleanup-Windows.ps1'
-Invoke-WebRequest -Uri $url -OutFile 'Cleanup-Windows.ps1'
+$url = 'https://github.com/paulmann/Windows-Cleaner-and-Optimizer/raw/main/Cleanup-Windows-Senior.ps1'
+Invoke-WebRequest -Uri $url -OutFile 'Cleanup-Windows-Senior.ps1'
 
 # Batch version (legacy)
 $url = 'https://github.com/paulmann/Windows-Cleaner-and-Optimizer/raw/main/Cleanup-Windows-Senior.bat'
@@ -299,7 +299,7 @@ If you encounter "execution of scripts is disabled on this system":
 
 ```powershell
 # One-time bypass (recommended for testing)
-powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows.ps1" -EnableSafetyMode
+powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows-Senior.ps1" -EnableSafetyMode
 
 # Set for current user (permanent solution)
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
@@ -317,36 +317,36 @@ Get-ExecutionPolicy -List
 
 ```powershell
 # Recommended for interactive use - confirms dangerous operations
-.\Cleanup-Windows.ps1 -EnableSafetyMode
+.\Cleanup-Windows-Senior.ps1 -EnableSafetyMode
 
 # With restore point creation for added safety
-.\Cleanup-Windows.ps1 -EnableSafetyMode -CreateRestorePoint
+.\Cleanup-Windows-Senior.ps1 -EnableSafetyMode -CreateRestorePoint
 ```
 
 #### Automated Deployment
 
 ```powershell
 # Force mode for scripts and automated deployment
-.\Cleanup-Windows.ps1 -Force
+.\Cleanup-Windows-Senior.ps1 -Force
 
 # Force mode with specific operations only
-.\Cleanup-Windows.ps1 -Force -CleanTempFiles -CleanBrowserCaches
+.\Cleanup-Windows-Senior.ps1 -Force -CleanTempFiles -CleanBrowserCaches
 
 # Safety disabled for known environments
-.\Cleanup-Windows.ps1 -NoSafetyMode
+.\Cleanup-Windows-Senior.ps1 -NoSafetyMode
 ```
 
 #### Backup Integration
 
 ```powershell
 # Full safety with both restore point and system image
-.\Cleanup-Windows.ps1 -EnableSafetyMode -CreateRestorePoint -CreateSystemImage
+.\Cleanup-Windows-Senior.ps1 -EnableSafetyMode -CreateRestorePoint -CreateSystemImage
 
 # Restore point only (most common)
-.\Cleanup-Windows.ps1 -CreateRestorePoint
+.\Cleanup-Windows-Senior.ps1 -CreateRestorePoint
 
 # System image only (takes longer)
-.\Cleanup-Windows.ps1 -CreateSystemImage
+.\Cleanup-Windows-Senior.ps1 -CreateSystemImage
 ```
 
 ### Usage Examples
@@ -355,52 +355,52 @@ Get-ExecutionPolicy -List
 
 ```powershell
 # Recommended for most users - maximum safety
-.\Cleanup-Windows.ps1 -EnableSafetyMode -CreateRestorePoint
+.\Cleanup-Windows-Senior.ps1 -EnableSafetyMode -CreateRestorePoint
 
 # Dry run to preview changes with safety
-.\Cleanup-Windows.ps1 -DryRun -EnableSafetyMode
+.\Cleanup-Windows-Senior.ps1 -DryRun -EnableSafetyMode
 
 # Clean for all users with safety confirmations
-.\Cleanup-Windows.ps1 -EnableSafetyMode -CleanForAllUsers
+.\Cleanup-Windows-Senior.ps1 -EnableSafetyMode -CleanForAllUsers
 ```
 
 #### Advanced Safety Configuration
 
 ```powershell
 # Custom safety configuration
-.\Cleanup-Windows.ps1 -EnableSafetyMode -CreateRestorePoint -NoCreateSystemImage
+.\Cleanup-Windows-Senior.ps1 -EnableSafetyMode -CreateRestorePoint -NoCreateSystemImage
 
 # Specific operation control with safety
-.\Cleanup-Windows.ps1 -EnableSafetyMode -CleanTempFiles -CleanBrowserCaches -NoCleanEventLogs
+.\Cleanup-Windows-Senior.ps1 -EnableSafetyMode -CleanTempFiles -CleanBrowserCaches -NoCleanEventLogs
 
 # PowerShell 7+ optimized with safety
-.\Cleanup-Windows.ps1 -EnableSafetyMode -UseParallelProcessing -EnableTelemetry
+.\Cleanup-Windows-Senior.ps1 -EnableSafetyMode -UseParallelProcessing -EnableTelemetry
 ```
 
 #### Enterprise Deployment
 
 ```powershell
 # Force mode for automated scripts (use with caution)
-.\Cleanup-Windows.ps1 -Force
+.\Cleanup-Windows-Senior.ps1 -Force
 
 # Limited operations in force mode
-.\Cleanup-Windows.ps1 -Force -CleanTempFiles -CleanBrowserCaches -NoCleanRecycleBin
+.\Cleanup-Windows-Senior.ps1 -Force -CleanTempFiles -CleanBrowserCaches -NoCleanRecycleBin
 
 # Custom log path with safety
-.\Cleanup-Windows.ps1 -EnableSafetyMode -LogPath "C:\Logs\cleanup.log" -DaysOld 14
+.\Cleanup-Windows-Senior.ps1 -EnableSafetyMode -LogPath "C:\Logs\cleanup.log" -DaysOld 14
 ```
 
 #### PowerShell 7+ Optimized
 
 ```powershell
 # Leverage all PS7+ enhancements
-.\Cleanup-Windows.ps1 -EnableSafetyMode -UseParallelProcessing -EnableTelemetry
+.\Cleanup-Windows-Senior.ps1 -EnableSafetyMode -UseParallelProcessing -EnableTelemetry
 
 # Performance-focused with safety
-.\Cleanup-Windows.ps1 -UseParallelProcessing -CreateRestorePoint
+.\Cleanup-Windows-Senior.ps1 -UseParallelProcessing -CreateRestorePoint
 
 # Enhanced logging and telemetry
-.\Cleanup-Windows.ps1 -EnableTelemetry -LogPath "C:\Logs\detailed-cleanup.log"
+.\Cleanup-Windows-Senior.ps1 -EnableTelemetry -LogPath "C:\Logs\detailed-cleanup.log"
 ```
 
 #### Batch Version (Legacy)
@@ -529,12 +529,12 @@ jobs:
       
       - name: Deploy PowerShell Version with Safety
         run: |
-          powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows.ps1" -Force -LogPath "C:\Logs\cleanup-${{ github.run_id }}.log"
+          powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows-Senior.ps1" -Force -LogPath "C:\Logs\cleanup-${{ github.run_id }}.log"
         shell: cmd
         
       - name: Safety-Conscious Deployment
         run: |
-          powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows.ps1" -EnableSafetyMode -CreateRestorePoint -UseParallelProcessing
+          powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows-Senior.ps1" -EnableSafetyMode -CreateRestorePoint -UseParallelProcessing
         shell: cmd
 ```
 
@@ -551,12 +551,12 @@ pool:
 
 steps:
 - powershell: |
-    .\Cleanup-Windows.ps1 -EnableSafetyMode -CreateRestorePoint -UseParallelProcessing
+    .\Cleanup-Windows-Senior.ps1 -EnableSafetyMode -CreateRestorePoint -UseParallelProcessing
   displayName: 'Run Windows Cleanup with Safety'
   continueOnError: true
   
 - powershell: |
-    .\Cleanup-Windows.ps1 -Force -CleanTempFiles -CleanBrowserCaches
+    .\Cleanup-Windows-Senior.ps1 -Force -CleanTempFiles -CleanBrowserCaches
   displayName: 'Fast Cleanup (Force Mode)'
   condition: always()
 ```
@@ -568,10 +568,10 @@ Create a Group Policy Object (GPO) for mass deployment with safety consideration
 ```powershell
 # PowerShell script deployment via GPO with safety
 # Computer Configuration → Policies → Windows Settings → Scripts (Startup/Shutdown)
-# Add: powershell.exe -ExecutionPolicy Bypass -File "\\domain\sysvol\scripts\Cleanup-Windows.ps1" -Force
+# Add: powershell.exe -ExecutionPolicy Bypass -File "\\domain\sysvol\scripts\Cleanup-Windows-Senior.ps1" -Force
 
 # Safety-conscious deployment for user workstations
-# Add: powershell.exe -ExecutionPolicy Bypass -File "\\domain\sysvol\scripts\Cleanup-Windows.ps1" -EnableSafetyMode -CreateRestorePoint
+# Add: powershell.exe -ExecutionPolicy Bypass -File "\\domain\sysvol\scripts\Cleanup-Windows-Senior.ps1" -EnableSafetyMode -CreateRestorePoint
 
 # Batch file deployment via GPO (simpler, fewer safety features)
 # Computer Configuration → Policies → Windows Settings → Scripts (Startup/Shutdown) 
@@ -587,10 +587,10 @@ REM Detection Method
 reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v CurrentBuild | find "26200"
 
 REM Installation Command (PowerShell with Safety)
-powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File ".\Cleanup-Windows.ps1" -Force
+powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File ".\Cleanup-Windows-Senior.ps1" -Force
 
 REM Installation Command (PowerShell with Enhanced Safety)
-powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File ".\Cleanup-Windows.ps1" -EnableSafetyMode -CreateRestorePoint
+powershell.exe -ExecutionPolicy Bypass -WindowStyle Hidden -File ".\Cleanup-Windows-Senior.ps1" -EnableSafetyMode -CreateRestorePoint
 
 REM Installation Command (Batch - Limited Safety Features)
 Cleanup-Windows-Senior.bat
@@ -617,7 +617,7 @@ Configuration WindowsCleanupEnterprise {
     Node "localhost" {
         Script RunCleanupWithSafety {
             SetScript = {
-                & "C:\Scripts\Cleanup-Windows.ps1" -EnableSafetyMode -CreateRestorePoint -UseParallelProcessing
+                & "C:\Scripts\Cleanup-Windows-Senior.ps1" -EnableSafetyMode -CreateRestorePoint -UseParallelProcessing
             }
             TestScript = {
                 # Check if cleanup is needed (always run for maintenance)
@@ -630,7 +630,7 @@ Configuration WindowsCleanupEnterprise {
         
         Script RunCleanupForced {
             SetScript = {
-                & "C:\Scripts\Cleanup-Windows.ps1" -Force -LogPath "C:\Logs\cleanup.log"
+                & "C:\Scripts\Cleanup-Windows-Senior.ps1" -Force -LogPath "C:\Logs\cleanup.log"
             }
             TestScript = {
                 # Check last cleanup time
@@ -652,10 +652,10 @@ Configuration WindowsCleanupEnterprise {
 # Create intunewin file with Microsoft Win32 Content Prep Tool
 
 # Install command with safety
-cmd /c "powershell.exe -ExecutionPolicy Bypass -File `"Cleanup-Windows.ps1`" -EnableSafetyMode -CreateRestorePoint"
+cmd /c "powershell.exe -ExecutionPolicy Bypass -File `"Cleanup-Windows-Senior.ps1`" -EnableSafetyMode -CreateRestorePoint"
 
 # Install command for automated environments
-cmd /c "powershell.exe -ExecutionPolicy Bypass -File `"Cleanup-Windows.ps1`" -Force"
+cmd /c "powershell.exe -ExecutionPolicy Bypass -File `"Cleanup-Windows-Senior.ps1`" -Force"
 
 # Detection rule
 if (Test-Path "C:\ProgramData\WindowsCleanup\last-run.txt") {
@@ -697,12 +697,12 @@ exit 1
   <Actions>
     <!-- Safety-conscious execution -->
     <Exec>
-      <Command>C:\Scripts\Cleanup-Windows.ps1</Command>
+      <Command>C:\Scripts\Cleanup-Windows-Senior.ps1</Command>
       <Arguments>-EnableSafetyMode -CreateRestorePoint -LogPath "C:\Logs\scheduled-cleanup.log"</Arguments>
     </Exec>
     <!-- Force mode for automated environments -->
     <Exec>
-      <Command>C:\Scripts\Cleanup-Windows.ps1</Command>
+      <Command>C:\Scripts\Cleanup-Windows-Senior.ps1</Command>
       <Arguments>-Force -LogPath "C:\Logs\automated-cleanup.log"</Arguments>
     </Exec>
   </Actions>
@@ -774,7 +774,7 @@ if (-not (Confirm-DangerousOperation -OperationName "CleanRecycleBin" -Descripti
 # Solution: Use one-time bypass or adjust policy with safety considerations
 
 # Quick fix - one-time bypass with safety
-powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows.ps1" -EnableSafetyMode
+powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows-Senior.ps1" -EnableSafetyMode
 
 # Permanent fix for current user
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
@@ -900,13 +900,13 @@ cd Windows-Cleaner-and-Optimizer
 
 # Test safety features thoroughly
 # Safety mode testing
-powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows.ps1" -EnableSafetyMode -DryRun
+powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows-Senior.ps1" -EnableSafetyMode -DryRun
 
 # Force mode testing
-powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows.ps1" -Force -DryRun
+powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows-Senior.ps1" -Force -DryRun
 
 # Backup feature testing
-powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows.ps1" -CreateRestorePoint -DryRun
+powershell.exe -ExecutionPolicy Bypass -File ".\Cleanup-Windows-Senior.ps1" -CreateRestorePoint -DryRun
 
 # Batch version testing in legacy environments
 .\Cleanup-Windows-Senior.bat
